@@ -87,35 +87,36 @@ clases = []
 aula_actual = None
 
 def separar_dia_horario(texto, aula):
-    """Separa DIA y HORARIO según modalidad (presencial/virtual)"""
+    """Devuelve lista de (DIA, HORARIO). Dos días con dos horarios se emparejan por posición."""
     if pd.isna(texto) or pd.isna(aula):
-        return '', ''
-    
+        return [('', '')]
+
     texto = str(texto).strip()
     aula = str(aula).strip().lower()
-    
-    if '/' not in texto:
-        return '', texto
-    
-    # Dividir por "/"
-    partes = texto.split('/')
-    dia = partes[0].strip()
-    
-    # Detectar si es virtual o presencial
-    es_virtual = 'virtual' in aula
-    
-    if es_virtual:
-        # Aula virtual: tomar SEGUNDO horario (después del segundo "/")
-        if len(partes) >= 3:
-            horario = partes[2].strip()
-        else:
-            horario = partes[1].strip() if len(partes) > 1 else ''
-    else:
-        # Aula presencial: tomar PRIMER horario (después del primer "/")
-        horario = partes[1].strip() if len(partes) > 1 else ''
-    
-    return dia, horario
 
+    if '/' not in texto:
+        return [('', texto)]
+
+    partes = texto.split('/')
+    dias = [normalizar_dia(d) for d in partes[0].strip().split('-') if d.strip()]
+    horarios = [p.strip() for p in partes[1:] if p.strip()]
+
+    if not dias:
+        return [('', horarios[0] if horarios else '')]
+
+    # Dos días y dos horarios: cada día toma su horario por posición (M-V / 08:00 / 10:00)
+    if len(dias) >= 2 and len(horarios) >= 2:
+        return list(zip(dias, horarios))
+
+    # Un solo horario para todos los días
+    if 'virtual' in aula:
+        horario = horarios[1] if len(horarios) >= 2 else (horarios[0] if horarios else '')
+    else:
+        horario = horarios[0] if horarios else ''
+
+    return [(d, horario) for d in dias]
+
+filas_raw = []
 for idx, row in df.iterrows():
     if pd.notna(row[0]) and ' - ' in str(row[0]) and row[1] == 'Cap.':
         aula_actual = str(row[0]).split(' - ')[-1].strip()
@@ -125,20 +126,69 @@ for idx, row in df.iterrows():
             cupo_final = int(cupo_val) if pd.notna(cupo_val) else 0
         except:
             cupo_final = 0
-        
-        dia, horario = separar_dia_horario(row[3], aula_actual)
-        dia = normalizar_dia(dia)
-        docente = str(row[4]) if pd.notna(row[4]) else ''
-        
-        clases.append({
+
+        filas_raw.append({
             'AULA': aula_actual,
             'ASIGNATURA': str(row[0]),
             'SECCION': str(row[1]),
-            'CUPO': 0,
             'INSCRITOS': cupo_final,
+            'DOCENTE': str(row[4]) if pd.notna(row[4]) else '',
+            'TEXTO': row[3],
+            'VIRTUAL': 'virtual' in aula_actual.lower(),
+        })
+
+# ========== EMPAREJAR DÍAS Y HORARIOS POR SECCIÓN ==========
+# Uonline muestra la lista completa de horarios de la sección en cada aula.
+# Si todas las filas presenciales de la sección tienen dos horarios y el número
+# de días coincide, cada día toma el horario de su posición (días ordenados).
+DIAS_ORDEN = {'Lu': 0, 'Ma': 1, 'Mi': 2, 'Ju': 3, 'Vi': 4, 'Sa': 5, 'Do': 6}
+
+def partes_texto(texto):
+    if pd.isna(texto):
+        return [], []
+    texto = str(texto).strip()
+    if '/' not in texto:
+        return [], ([texto] if texto else [])
+    partes = texto.split('/')
+    dias = [normalizar_dia(d) for d in partes[0].strip().split('-') if d.strip()]
+    horarios = [p.strip() for p in partes[1:] if p.strip()]
+    return dias, horarios
+
+grupos = {}
+for f in filas_raw:
+    f['DIAS'], f['HS'] = partes_texto(f['TEXTO'])
+    grupos.setdefault((f['ASIGNATURA'], f['SECCION']), []).append(f)
+
+mapa_grupo = {}
+for clave, filas in grupos.items():
+    presenciales = [f for f in filas if not f['VIRTUAL'] and len(f['HS']) >= 2 and f['DIAS']]
+    if not presenciales:
+        continue
+    dias_grupo = sorted({d for f in presenciales for d in f['DIAS']},
+                        key=lambda d: DIAS_ORDEN.get(d, 99))
+    slots = max((f['HS'] for f in presenciales), key=len)
+    if len(dias_grupo) >= 2 and len(dias_grupo) == len(slots):
+        mapa_grupo[clave] = dict(zip(dias_grupo, slots))
+
+clases = []
+for f in filas_raw:
+    mapa = mapa_grupo.get((f['ASIGNATURA'], f['SECCION']))
+    pares = []
+    if mapa and not f['VIRTUAL'] and len(f['HS']) >= 2:
+        pares = [(d, mapa[d]) for d in f['DIAS'] if d in mapa]
+    if not pares:
+        pares = separar_dia_horario(f['TEXTO'], f['AULA'])
+
+    for dia, horario in pares:
+        clases.append({
+            'AULA': f['AULA'],
+            'ASIGNATURA': f['ASIGNATURA'],
+            'SECCION': f['SECCION'],
+            'CUPO': 0,
+            'INSCRITOS': f['INSCRITOS'],
             'HORARIO': horario,
             'DIA': dia,
-            'DOCENTE': docente,
+            'DOCENTE': f['DOCENTE'],
             'PARIDAD': 'SEMANAL',
             'TIPO': 'TEÓRICA'
         })
