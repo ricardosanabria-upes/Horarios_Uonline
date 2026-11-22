@@ -198,6 +198,10 @@ clases_df = pd.DataFrame(clases)
 # ========== CONSOLIDAR ==========
 consolidada = pd.concat([labs_norm, clases_df], ignore_index=True)
 
+# ORDEN: LUNES A DOMINGO, LUEGO AULA Y HORARIO
+consolidada['_orden_dia'] = consolidada['DIA'].map(DIAS_ORDEN).fillna(99)
+consolidada = consolidada.sort_values(['_orden_dia', 'AULA', 'HORARIO']).drop(columns='_orden_dia').reset_index(drop=True)
+
 # ========== DETECTAR CHOQUES ==========
 def detectar_choques(df):
     """Detecta choques considerando AULA + DÍA + HORARIO + PARIDAD"""
