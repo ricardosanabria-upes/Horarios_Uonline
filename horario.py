@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import io
 import os
+import unicodedata
 from datetime import datetime
 
 st.set_page_config(page_title="Validación Uonline", layout="wide")
@@ -51,6 +52,13 @@ def extraer_franja(horario):
     inicio = horario.split(' - ')[0].strip()
     hora = inicio.split(':')[0]
     return hora + ':'
+
+# ========== FUNCIÓN ES VIRTUAL ==========
+def es_virtual(aula):
+    """Reconoce aulas virtuales: 'virtual' y 'Clase en Línea' (con o sin tilde)"""
+    s = unicodedata.normalize('NFKD', str(aula))
+    s = ''.join(c for c in s if not unicodedata.combining(c)).lower()
+    return 'virtual' in s or 'linea' in s
 
 # ========== LABORATORIOS ==========
 labs = pd.read_excel('PRACTICAS LAB CICLO ACTUAL DATA ONLY.xlsx', header=None, skiprows=1)
@@ -109,7 +117,7 @@ def separar_dia_horario(texto, aula):
         return list(zip(dias, horarios))
 
     # Un solo horario para todos los días
-    if 'virtual' in aula:
+    if es_virtual(aula):
         horario = horarios[1] if len(horarios) >= 2 else (horarios[0] if horarios else '')
     else:
         horario = horarios[0] if horarios else ''
@@ -134,7 +142,7 @@ for idx, row in df.iterrows():
             'INSCRITOS': cupo_final,
             'DOCENTE': str(row[4]) if pd.notna(row[4]) else '',
             'TEXTO': row[3],
-            'VIRTUAL': 'virtual' in aula_actual.lower(),
+            'VIRTUAL': es_virtual(aula_actual),
         })
 
 # ========== EMPAREJAR DÍAS Y HORARIOS POR SECCIÓN ==========
