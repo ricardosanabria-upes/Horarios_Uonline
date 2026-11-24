@@ -165,7 +165,7 @@ def partes_texto(texto):
 grupos = {}
 for f in filas_raw:
     f['DIAS'], f['HS'] = partes_texto(f['TEXTO'])
-    grupos.setdefault((f['ASIGNATURA'], f['SECCION']), []).append(f)
+    grupos.setdefault((f['AULA'], f['ASIGNATURA'], f['SECCION']), []).append(f)
 
 mapa_grupo = {}
 for clave, filas in grupos.items():
@@ -180,7 +180,7 @@ for clave, filas in grupos.items():
 
 clases = []
 for f in filas_raw:
-    mapa = mapa_grupo.get((f['ASIGNATURA'], f['SECCION']))
+    mapa = mapa_grupo.get((f['AULA'], f['ASIGNATURA'], f['SECCION']))
     pares = []
     if mapa and not f['VIRTUAL'] and len(f['HS']) >= 2:
         pares = [(d, mapa[d]) for d in f['DIAS'] if d in mapa]
