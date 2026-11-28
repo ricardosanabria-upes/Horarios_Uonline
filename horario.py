@@ -263,8 +263,8 @@ with tab2:
     st.subheader("📚 Teóricas")
     teo_tab = consolidada[(consolidada['TIPO'] == 'TEÓRICA') & (consolidada['ASIGNATURA'].notna())].copy()
     teo_tab = teo_tab.reset_index(drop=True)
-    teo_tab_mostrar = teo_tab[['AULA', 'CODIGO', 'SECCION', 'ASIGNATURA', 'INSCRITOS', 'HORARIO',
-                               'DIA', 'DOCENTE', 'PARIDAD', 'TIPO']]
+    teo_tab_mostrar = teo_tab[['AULA', 'CODIGO', 'ASIGNATURA','SECCION', 'INSCRITOS',DIA', 'HORARIO',
+                               'DOCENTE', 'PARIDAD', 'TIPO']]
 
     col1, col2, col3 = st.columns(3)
     col1.metric("Total Clases Teo", len(teo_tab))
